@@ -76,7 +76,7 @@ fbd collect-gentxs
 fbd start
 
 # Then, wait 10 seconds and in another terminal window, test things are ok by sending 10 tok tokens from the validator to the testuser
-fbcli tx send validator $(fbcli keys show testuser -a) 10fbx --chain-id=peggy --yes
+fbcli tx send validator $(fbcli keys show testuser -a) 10fbx --chain-id=fbchain --yes
 
 # Wait a few seconds for confirmation, then confirm token balances have changed appropriately
 fbcli query account $(fbcli keys show validator -a) --trust-node

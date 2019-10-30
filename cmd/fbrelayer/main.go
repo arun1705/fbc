@@ -33,14 +33,14 @@ func init() {
 
 	// Read in the configuration file for the sdk
 	config := sdk.GetConfig()
-	config.SetBech32PrefixForAccount(sdk.Bech32PrefixAccAddr, sdk.Bech32PrefixAccPub)
-	config.SetBech32PrefixForValidator(sdk.Bech32PrefixValAddr, sdk.Bech32PrefixValPub)
-	config.SetBech32PrefixForConsensusNode(sdk.Bech32PrefixConsAddr, sdk.Bech32PrefixConsPub)
+	config.SetBech32PrefixForAccount("firstbloodaccaddr", "firstbloodaccpub")
+	config.SetBech32PrefixForValidator("firstbloodvaladdr", "firstbloodvalpub")
+	config.SetBech32PrefixForConsensusNode("firstbloodconsaddr", "firstbloodconspub")
 	config.Seal()
 
 	appCodec = app.MakeCodec()
 
-	DefaultCLIHome := os.ExpandEnv("$HOME/.ebcli")
+	DefaultCLIHome := os.ExpandEnv("$HOME/.fbcli")
 
 	// Add --chain-id to persistent flags and mark it required
 	rootCmd.PersistentFlags().String(client.FlagChainID, "", "Chain ID of tendermint node")
