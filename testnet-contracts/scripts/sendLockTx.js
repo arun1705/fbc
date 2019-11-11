@@ -7,7 +7,9 @@ module.exports = async () => {
 
   // Contract abstraction
   const truffleContract = require("truffle-contract");
-  const contract = truffleContract(require("../build/contracts/Peggy.json"));
+  const contract = truffleContract(
+    require("../build/contracts/BridgeBank.json")
+  );
 
   /*******************************************
    *** Constants
@@ -119,9 +121,10 @@ module.exports = async () => {
 
   // Parse event fields
   const lockEvent = {
-    id: event.args._id,
+    from: event.args._from,
     to: event.args._to,
     token: event.args._token,
+    symbol: event.args._symbol,
     value: Number(event.args._value),
     nonce: Number(event.args._nonce)
   };

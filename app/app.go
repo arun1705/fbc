@@ -1,7 +1,7 @@
 package app
 
 import (
-	"encoding/json"
+
 	"os"
 
 	abci "github.com/tendermint/tendermint/abci/types"
@@ -18,6 +18,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
+	"github.com/cosmos/cosmos-sdk/x/auth/ante"
+	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	"github.com/cosmos/cosmos-sdk/x/genaccounts"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
@@ -27,7 +29,7 @@ import (
 )
 
 const (
-	appName = "ethereum-bridge"
+	appName = "EthereumBridge"
 )
 
 var (
@@ -41,9 +43,8 @@ var (
 	// non-dependant module elements, such as codec registration
 	// and genesis verification.
 	ModuleBasics = module.NewBasicManager(
-		genaccounts.AppModuleBasic{},
-		genutil.AppModuleBasic{},
 		auth.AppModuleBasic{},
+		genutil.AppModuleBasic{},
 		bank.AppModuleBasic{},
 		staking.AppModuleBasic{},
 		params.AppModuleBasic{},
@@ -57,6 +58,7 @@ var (
 		auth.FeeCollectorName:     nil,
 		staking.BondedPoolName:    {supply.Burner, supply.Staking},
 		staking.NotBondedPoolName: {supply.Burner, supply.Staking},
+		ethbridge.ModuleName:      {supply.Burner, supply.Minter},
 	}
 )
 
@@ -64,6 +66,7 @@ var (
 func MakeCodec() *codec.Codec {
 	var cdc = codec.New()
 	ModuleBasics.RegisterCodec(cdc)
+	vesting.RegisterCodec(cdc)
 	sdk.RegisterCodec(cdc)
 	codec.RegisterCrypto(cdc)
 	return cdc
@@ -94,8 +97,10 @@ type EthereumBridgeApp struct {
 }
 
 // NewEthereumBridgeApp is a constructor function for EthereumBridgeApp
-func NewEthereumBridgeApp(logger log.Logger, db dbm.DB,
-	baseAppOptions ...func(*bam.BaseApp)) *EthereumBridgeApp {
+func NewEthereumBridgeApp(
+	logger log.Logger, db dbm.DB, loadLatest bool,
+	baseAppOptions ...func(*bam.BaseApp),
+) *EthereumBridgeApp {
 
 	// First define the top level codec that will be shared by the different modules
 	cdc := MakeCodec()
@@ -105,8 +110,10 @@ func NewEthereumBridgeApp(logger log.Logger, db dbm.DB,
 
 	bApp.SetAppVersion(version.Version)
 
-	keys := sdk.NewKVStoreKeys(bam.MainStoreKey, auth.StoreKey, staking.StoreKey,
-		supply.StoreKey, oracle.StoreKey, params.StoreKey)
+	keys := sdk.NewKVStoreKeys(
+		bam.MainStoreKey, auth.StoreKey, staking.StoreKey,
+		supply.StoreKey, oracle.StoreKey, params.StoreKey,
+	)
 	tkeys := sdk.NewTransientStoreKeys(staking.TStoreKey, params.TStoreKey)
 
 	// Here you initialize your application with the store keys it requires
@@ -128,10 +135,11 @@ func NewEthereumBridgeApp(logger log.Logger, db dbm.DB,
 	app.AccountKeeper = auth.NewAccountKeeper(app.cdc, keys[auth.StoreKey], authSubspace, auth.ProtoBaseAccount)
 	app.BankKeeper = bank.NewBaseKeeper(app.AccountKeeper, bankSubspace, bank.DefaultCodespace, app.ModuleAccountAddrs())
 	app.SupplyKeeper = supply.NewKeeper(app.cdc, keys[supply.StoreKey], app.AccountKeeper, app.BankKeeper, maccPerms)
-	app.StakingKeeper = staking.NewKeeper(app.cdc, keys[staking.StoreKey], tkeys[staking.TStoreKey],
+	app.StakingKeeper = staking.NewKeeper(app.cdc, keys[staking.StoreKey],
 		app.SupplyKeeper, stakingSubspace, staking.DefaultCodespace)
-
-	app.OracleKeeper = oracle.NewKeeper(app.cdc, keys[oracle.StoreKey], app.StakingKeeper, oracle.DefaultCodespace, oracle.DefaultConsensusNeeded)
+	app.OracleKeeper = oracle.NewKeeper(app.cdc, keys[oracle.StoreKey],
+		app.StakingKeeper, oracle.DefaultCodespace, oracle.DefaultConsensusNeeded,
+	)
 
 	// NOTE: Any module instantiated in the module manager that is later modified
 	// must be passed by reference here.
@@ -143,7 +151,7 @@ func NewEthereumBridgeApp(logger log.Logger, db dbm.DB,
 		supply.NewAppModule(app.SupplyKeeper, app.AccountKeeper),
 		staking.NewAppModule(app.StakingKeeper, app.AccountKeeper, app.SupplyKeeper),
 		oracle.NewAppModule(app.OracleKeeper),
-		ethbridge.NewAppModule(app.OracleKeeper, app.BankKeeper, ethbridge.DefaultCodespace, app.cdc),
+		ethbridge.NewAppModule(app.OracleKeeper, app.SupplyKeeper, app.AccountKeeper, ethbridge.DefaultCodespace, app.cdc),
 	)
 
 	app.mm.SetOrderEndBlockers(staking.ModuleName)
@@ -151,37 +159,31 @@ func NewEthereumBridgeApp(logger log.Logger, db dbm.DB,
 	// NOTE: The genutils module must occur after staking so that pools are
 	// properly initialized with tokens from genesis accounts.
 	app.mm.SetOrderInitGenesis(
-		genaccounts.ModuleName, staking.ModuleName, auth.ModuleName, bank.ModuleName,
-		supply.ModuleName, genutil.ModuleName,
+		auth.ModuleName, staking.ModuleName, bank.ModuleName,
+		supply.ModuleName, genutil.ModuleName, ethbridge.ModuleName,
 	)
 
 	// TODO: add simulator support
 
 	app.mm.RegisterRoutes(app.Router(), app.QueryRouter())
 
-	// initialize BaseApp
-	app.SetInitChainer(app.InitChainer)
-	app.SetBeginBlocker(app.BeginBlocker)
-	app.SetAnteHandler(auth.NewAnteHandler(app.AccountKeeper, app.SupplyKeeper, auth.DefaultSigVerificationGasConsumer))
-	app.SetEndBlocker(app.EndBlocker)
-
 	// initialize stores
 	app.MountKVStores(keys)
 	app.MountTransientStores(tkeys)
 
-	err := app.LoadLatestVersion(app.keys[bam.MainStoreKey])
-	if err != nil {
-		cmn.Exit(err.Error())
+	// initialize BaseApp
+	app.SetInitChainer(app.InitChainer)
+	app.SetBeginBlocker(app.BeginBlocker)
+	app.SetAnteHandler(ante.NewAnteHandler(app.AccountKeeper, app.SupplyKeeper, auth.DefaultSigVerificationGasConsumer))
+	app.SetEndBlocker(app.EndBlocker)
+
+	if loadLatest {
+		err := app.LoadLatestVersion(app.keys[bam.MainStoreKey])
+		if err != nil {
+			cmn.Exit(err.Error())
+		}
 	}
-
 	return app
-}
-
-// GenesisState represents chain state at the start of the chain. Any initial state (account balances) are stored here.
-type GenesisState map[string]json.RawMessage
-
-func NewDefaultGenesisState() GenesisState {
-	return ModuleBasics.DefaultGenesis()
 }
 
 // InitChainer application update at chain initialization

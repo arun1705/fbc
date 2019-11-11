@@ -1,15 +1,37 @@
- 
 #!/usr/bin/make -f
 
-all: test clean install lint
+all: clean test build install lint
 
 # The below include contains the tools and runsim targets.
 include contrib/devtools/Makefile
 
-build:
-	go build ./cmd/fbd
-	go build ./cmd/fbcli
-	go build ./cmd/fbrelayer
+########################################
+### Build
+
+build:  go.sum
+	@go build -mod=readonly ./...
+
+########################################
+### Tools & dependencies
+
+go-mod-cache: go.sum
+	@echo "--> Download go modules to local cache"
+	@go mod download
+.PHONY: go-mod-cache
+
+go.sum: go.mod
+	@echo "--> Ensure dependencies have not been modified"
+	@go mod verify
+	@go mod tidy
+
+build_test_container:
+	docker-compose -f ./deploy/test/docker-compose.yml --project-directory . build
+
+start_test_containers:
+	docker-compose -f ./deploy/test/docker-compose.yml --project-directory . up
+
+stop_test_containers:
+	docker-compose -f ./deploy/test/docker-compose.yml --project-directory . down
 
 clean:
 	rm -f fbd
@@ -17,9 +39,9 @@ clean:
 	rm -f fbrelayer
 
 install:
-	go install ./cmd/fbd
-	go install ./cmd/fbcli
-	go install ./cmd/fbrelayer
+	go install -mod=readonly ./cmd/fbd
+	go install -mod=readonly ./cmd/fbcli
+	go install -mod=readonly ./cmd/fbrelayer
 
 lint:
 	@echo "--> Running linter"
@@ -30,4 +52,4 @@ lint:
 test:
 	go test ./...
 
-.PHONY: all build clean install test lint all
+.PHONY: all build go-mod-cache build_test_container start_test_containers stop_test_containers clean install test lint all

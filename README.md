@@ -1,38 +1,11 @@
-# ETH Bridge Zone
-
-[![version](https://img.shields.io/github/tag/cosmos/peggy.svg)](https://github.com/blockkungpao/fbc/releases/latest)
-[![CircleCI](https://circleci.com/gh/cosmos/peggy/tree/master.svg?style=svg)](https://circleci.com/gh/cosmos/peggy/tree/master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/blockkungpao/fbc)](https://goreportcard.com/report/github.com/blockkungpao/fbc)
-[![LoC](https://tokei.rs/b1/github/cosmos/peggy)](https://github.com/blockkungpao/fbc)
-[![API Reference](https://godoc.org/github.com/blockkungpao/fbc?status.svg)](https://godoc.org/github.com/blockkungpao/fbc)
-
-## Summary
-
-Unidirectional Peggy is the starting point for cross chain value transfers from the Ethereum blockchain to Cosmos-SDK based blockchains as part of the Ethereum Cosmos Bridge project. The system accepts incoming transfers of Ethereum tokens on an Ethereum smart contract, locking them while the transaction is validated and equitable funds issued to the intended recipient on the Cosmos bridge chain.
-
-**Note**: Requires [Go 1.13+](https://golang.org/dl/)
-
-## Disclaimer
-
-This codebase, including all smart contract components, have not been professionally audited and are not intended for use in a production environment. As such, users should NOT trust the system to securely hold mainnet funds. Any developers attempting to use Unidirectional Peggy on the mainnet at this time will need to develop their own smart contracts or find another implementation.
-
-## Architecture
-
-See [here](./docs/architecture.md)
 
 ## Requirements
  - Go 1.13
 
-## Example application
 
-These modules can be added to any Cosmos-SDK based chain, but a demo application/blockchain is provided with example code for how to integrate them. It can be installed and built as follows:
 
 ```bash
-# Clone the repository
-mkdir -p $GOPATH/src/github.com/cosmos
-cd $GOPATH/src/github.com/cosmos
-git clone https://github.com/blockkungpao/fbc
-cd peggy && git checkout master
+# STEP-1
 
 # Install tools (golangci-lint v1.18)
 make tools-clean
@@ -62,6 +35,12 @@ fbcli keys add validator
 fbcli keys add testuser
 # Enter password
 
+# Edit the genesis.json file for customised stake denom
+--> on terminal go to folder ~/.fbd/config/genesis.json
+--> Edit the staking section having bond_denom key from "stake" to "fbx"
+--> Save and close the file.
+
+
 # Initialize the genesis account and transaction
 fbd add-genesis-account $(fbcli keys show validator -a) 1000000000fbx,1000000000fbc
 
@@ -72,34 +51,12 @@ fbd gentx --name validator --amount 1000000fbx
 # Collect genesis transaction
 fbd collect-gentxs
 
-# Now its safe to start `fbd`
-fbd start
 
-# Then, wait 10 seconds and in another terminal window, test things are ok by sending 10 tok tokens from the validator to the testuser
-fbcli tx send validator $(fbcli keys show testuser -a) 10fbx --chain-id=fbchain --yes
-
-# Wait a few seconds for confirmation, then confirm token balances have changed appropriately
-fbcli query account $(fbcli keys show validator -a) --trust-node
-fbcli query account $(fbcli keys show testuser -a) --trust-node
-
-# See the help for the ethbridge create claim function
-fbcli tx ethbridge create-claim --help
-
-# Now you can test out the ethbridge module by submitting a claim for an ethereum prophecy
-# Create a bridge claim (Ethereum prophecies are stored on the blockchain with an identifier created by concatenating the nonce and sender address)
-fbcli tx ethbridge create-claim 0 0x7B95B6EC7fbd73572298cEf32Bb54FA408207359 $(fbcli keys show testuser -a) $(fbcli keys show validator -a --bech val) 3eth --from=validator --chain-id=peggy --yes
-
-# Then read the prophecy to confirm it was created with the claim added
-fbcli query ethbridge prophecy 0 0x7B95B6EC7fbd73572298cEf32Bb54FA408207359 --trust-node
-
-# And finally, confirm that the prophecy was successfully processed and that new eth was minted to the testuser address
-fbcli query account $(fbcli keys show testuser -a) --trust-node
+# STEP-2
 
 ```
 
 ## Running the bridge locally
-
-With the application set up, you can now use Peggy by sending a lock transaction to the smart contract.
 
 ### Set-up
 
@@ -110,12 +67,7 @@ cd testnet-contracts/
 cp .env.example .env
 ```
 
-For running the bridge locally, you'll only need the `LOCAL_PROVIDER` environment variables. Environment variables `MNEMONIC` and `INFURA_PROJECT_ID` are required for using the Ropsten testnet.
-
-Further reading:
-
-- [MetaMask Mnemonic](https://metamask.zendesk.com/hc/en-us/articles/360015290032-How-to-Reveal-Your-Seed-Phrase)
-- [Infura Project ID](https://blog.infura.io/introducing-the-infura-dashboard-8969b7ab94e7)
+For running the bridge locally, you'll only need the `LOCAL_PROVIDER` environment variables.
 
 ### Terminal 1: Start local blockchain
 
@@ -132,7 +84,7 @@ yarn develop
 ```bash
 # Deploy contract to local blockchain
 yarn migrate
-
+ 
 # Copy contract ABI to go modules:
 yarn peggy:abi
 
@@ -143,11 +95,15 @@ yarn peggy:address
 ### Terminal 3: Build and start Ethereum Bridge
 
 ```bash
-# Build the Ethereum Bridge application
-make install
-
-# Start the Bridge's blockchain
+# Now its safe to start `fbd`
 fbd start
+
+# Then, wait 10 seconds and in another terminal window, test things are ok by sending 10 tok tokens from the validator to the testuser
+fbcli tx send validator $(fbcli keys show testuser -a) 10fbx --chain-id=fbchain --yes
+
+# Wait a few seconds for confirmation, then confirm token balances have changed appropriately
+fbcli query account $(fbcli keys show validator -a) --trust-node
+fbcli query account $(fbcli keys show testuser -a) --trust-node
 ```
 
 ### Terminal 4: Start the Relayer service
@@ -155,14 +111,14 @@ fbd start
 For automated relaying, there is a relayer service that can be run that will automatically watch and relay events (local web socket and deployed address parameters may vary).
 
 ```bash
-# Check fbrelayer connection to ebd
+# Check fbrelayer connection to fbd
 fbrelayer status
 
-# Start ebrelayer on the contract's deployed address with [LOCAL_WEB_SOCKET] and [PEGGY_DEPLOYED_ADDRESS]
+# Start fbrelayer on the contract's deployed address with [LOCAL_WEB_SOCKET] and [PEGGY_DEPLOYED_ADDRESS]
 # Example [LOCAL_WEB_SOCKET]: ws://127.0.0.1:7545/
 # Example [PEGGY_DEPLOYED_ADDRESS]: 0xC4cE93a5699c68241fc2fB503Fb0f21724A624BB
 
-ebrelayer init [LOCAL_WEB_SOCKET] [PEGGY_DEPLOYED_ADDRESS] LogLock\(bytes32,address,bytes,address,string,uint256,uint256\) validator --chain-id=peggy
+fbrelayer init [LOCAL_WEB_SOCKET] [PEGGY_DEPLOYED_ADDRESS] LogLock\(bytes32,address,bytes,address,string,uint256,uint256\) validator --chain-id=fbchain
 
 # Enter password and press enter
 # You should see a message like: Started ethereum websocket with provider: [LOCAL_WEB_SOCKET] \ Subscribed to contract events on address: [PEGGY_DEPLOYED_ADDRESS]
@@ -174,7 +130,7 @@ ebrelayer init [LOCAL_WEB_SOCKET] [PEGGY_DEPLOYED_ADDRESS] LogLock\(bytes32,addr
 
 ```bash
 # Default parameter values:
-# [HASHED_COSMOS_RECIPIENT_ADDRESS] = 0x636f736d6f7331706a74677530766175326d35326e72796b64707a74727438383761796b756530687137646668
+# [HASHED_FBCHAIN_RECIPIENT_ADDRESS] = 0x636f736d6f7331706a74677530766175326d35326e72796b64707a74727438383761796b756530687137646668  //USE STRING TO BASE64 CONVERTER  ONLINE TO GET HASHED ADDRESS FO TESTUSER
 # [TOKEN_CONTRACT_ADDRESS] = 0x0000000000000000000000000000000000000000
 # [WEI_AMOUNT] = 10
 
@@ -182,7 +138,7 @@ ebrelayer init [LOCAL_WEB_SOCKET] [PEGGY_DEPLOYED_ADDRESS] LogLock\(bytes32,addr
 yarn peggy:lock --default
 
 # Send lock transaction with custom parameters
-yarn peggy:lock [HASHED_COSMOS_RECIPIENT_ADDRESS] [TOKEN_CONTRACT_ADDRESS] [WEI_AMOUNT]
+yarn peggy:lock [HASHED_FBCHAIN_RECIPIENT_ADDRESS] [TOKEN_CONTRACT_ADDRESS] [WEI_AMOUNT]
 
 ```
 
@@ -207,6 +163,11 @@ GasWanted: 200000
 GasUsed: 42112
 Tags: - action = create_bridge_claim
 ```
+# Confirm that the prophecy was successfully processed and that new eth was minted to the testuser address
+fbcli query account $(fbcli keys show testuser -a) --trust-node
+
+# Test out burning the eth for the return trip
+fbcli tx ethbridge burn $(fbcli keys show testuser -a) 0x7B95B6EC7fbd73572298cEf32Bb54FA408207359 1eth --from=testuser --chain-id=fbchain --yes
 
 ## Running the bridge on the Ropsten testnet
 
@@ -222,12 +183,12 @@ To run the Ethereum Bridge on the Ropsten testnet, repeat the steps for running 
 yarn migrate --network ropsten
 yarn peggy:address --network ropsten
 
-# Make sure to start ebrelayer with Ropsten network websocket
-fbrelayer init wss://ropsten.infura.io/ [PEGGY_DEPLOYED_ADDRESS] LogLock\(bytes32,address,bytes,address,string,uint256,uint256\) validator --chain-id=peggy
+# Make sure to start fbrelayer with Ropsten network websocket
+fbrelayer init wss://ropsten.infura.io/ws [PEGGY_DEPLOYED_ADDRESS] LogLock\(bytes32,address,bytes,address,string,uint256,uint256\) validator --chain-id=fbchain
 
 # Send lock transaction on Ropsten testnet
 
-yarn peggy:lock --network ropsten [HASHED_COSMOS_RECIPIENT_ADDRESS] [TOKEN_CONTRACT_ADDRESS] [WEI_AMOUNT]
+yarn peggy:lock --network ropsten [HASHED_FBCHAIN_RECIPIENT_ADDRESS] [TOKEN_CONTRACT_ADDRESS] [WEI_AMOUNT]
 
 ```
 
@@ -255,7 +216,7 @@ yarn peggy:lock [HASHED_COSMOS_RECIPIENT_ADDRESS] [TEST_TOKEN_CONTRACT_ADDRESS] 
 
 ```
 
-`yarn peggy:lock` ERC20 expected output in ebrelayer console (with a TOKEN_AMOUNT of 3):
+`yarn peggy:lock` ERC20 expected output in fbrelayer console (with a TOKEN_AMOUNT of 3):
 
 ```bash
 New Lock Transaction:
@@ -286,6 +247,7 @@ The ethbridge and oracle modules can be used in other cosmos-sdk applications by
 
 For instructions on building and deploying the smart contracts, see the README in their folder.
 
+fbcli rest-server --trust-node --chain-id=fbchain
 
 fbcli tx staking create-validator \
   --amount=100000000fbx \

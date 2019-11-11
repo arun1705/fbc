@@ -39,6 +39,10 @@ var (
 	MapOracleClaimsToEthBridgeClaims  = types.MapOracleClaimsToEthBridgeClaims
 	NewQueryEthProphecyParams         = types.NewQueryEthProphecyParams
 	NewQueryEthProphecyResponse       = types.NewQueryEthProphecyResponse
+
+	CreateTestEthMsg                   = types.CreateTestEthMsg
+	CreateTestEthClaim                 = types.CreateTestEthClaim
+	CreateTestQueryEthProphecyResponse = types.CreateTestQueryEthProphecyResponse
 )
 
 type (
@@ -47,6 +51,8 @@ type (
 	CodeType                 = types.CodeType
 	EthereumAddress          = types.EthereumAddress
 	MsgCreateEthBridgeClaim  = types.MsgCreateEthBridgeClaim
+	MsgBurn                  = types.MsgBurn
+	MsgLock                  = types.MsgLock
 	QueryEthProphecyParams   = types.QueryEthProphecyParams
 	QueryEthProphecyResponse = types.QueryEthProphecyResponse
 )
